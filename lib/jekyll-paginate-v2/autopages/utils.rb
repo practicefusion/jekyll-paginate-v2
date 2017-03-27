@@ -9,6 +9,12 @@ module Jekyll
         return toFormat.sub(':tag', Jekyll::Utils.slugify(tag.to_s))
       end #function format_tag_macro
 
+      # Static: returns a fully formatted string with the tag macro (:tag) replaced
+      #
+      def self.format_author_macro(toFormat, author)
+        return toFormat.sub(':author', Jekyll::Utils.slugify(author.to_s))
+      end #function format_tag_macro
+
       # Static: returns a fully formatted string with the category macro (:cat) replaced
       #
       def self.format_cat_macro(toFormat, category)

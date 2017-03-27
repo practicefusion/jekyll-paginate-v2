@@ -9,7 +9,12 @@ module Jekyll
         'title'         => 'Posts tagged with :tag',
         'permalink'     => '/tag/:tag',
         'enabled'       => true
-
+      },
+      'authors'        => {
+        'layouts'       => ['autopage_authors.html'],
+        'title'         => 'Posts tagged with :author',
+        'permalink'     => '/author/:author',
+        'enabled'       => true
       },
       'categories'  => {
         'layouts'       => ['autopage_category.html'],
