@@ -60,22 +60,6 @@ module Jekyll
         # Get all pages in the site (this will be used to find the pagination templates)
         all_pages = site.pages
 
-        # if( site.collections.authors && site.collections.authors.length )
-        #   puts(site.collections.authors.length)
-        #   all_pages = all_pages + site.collections.authors
-        # end
-
-        # puts('TOMMYDEBUGGY');
-        # puts(default_config['paginatable_collections']);
-        # puts(all_pages.length)
-
-        # if ( default_config['paginatable_collections'] )
-        #   collections_with_pagination = default_config['paginatable_collections']
-        #   collections_with_pagination.each { |collection| all_pages + site[collection.to_s]
-        # end
-
-        # puts(all_pages.length);
-
         # Get the default title of the site (used as backup when there is no title available for pagination)
         site_title = site.config['title']
 
