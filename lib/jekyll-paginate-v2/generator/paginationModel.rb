@@ -60,11 +60,12 @@ module Jekyll
                                                   # (this is a default and must not be used in the category system)
               all_tags = PaginationIndexer.index_posts_by(all_posts, 'tags')
               all_locales = PaginationIndexer.index_posts_by(all_posts, 'locale')
+              all_authors = PaginationIndexer.index_posts_by(all_posts, 'author')
 
               # TODO: NOTE!!! This whole request for posts and indexing results could be cached to improve performance, leaving like this for now during testing
 
               # Now construct the pagination data for this template page
-              self.paginate(template, template_config, site_title, all_posts, all_tags, all_categories, all_locales)
+              self.paginate(template, template_config, site_title, all_posts, all_tags, all_categories, all_locales, all_authors)
             end
           end
         end #for
@@ -158,6 +159,7 @@ module Jekyll
           puts f + "  Category: ".ljust(r) + (config['category'].nil? || config['category'] == "posts" ? "[Not set]" : config['category'].to_s)
           puts f + "  Tag: ".ljust(r) + (config['tag'].nil? ? "[Not set]" : config['tag'].to_s)
           puts f + "  Locale: ".ljust(r) + (config['locale'].nil? ? "[Not set]" : config['locale'].to_s)
+          puts f + "  Author: ".ljust(r) + (config['author'].nil? ? "[Not set]" : config['author'].to_s)
 
           if config['legacy'] 
             puts f + " Legacy Paginate Code Enabled"
@@ -200,7 +202,7 @@ module Jekyll
       # template - The index.html Page that requires pagination.
       # config - The configuration settings that should be used
       #
-      def paginate(template, config, site_title, all_posts, all_tags, all_categories, all_locales)
+      def paginate(template, config, site_title, all_posts, all_tags, all_categories, all_locales, all_authors)
         # By default paginate on all posts in the site
         using_posts = all_posts
         
@@ -214,6 +216,9 @@ module Jekyll
         before = using_posts.size.to_i
         using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'locale', using_posts, all_locales)
         self._debug_print_filtering_info('Locale', before, using_posts.size.to_i)
+        before = using_posts.size.to_i
+        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'author', using_posts, all_authors)
+        self._debug_print_filtering_info('Author', before, using_posts.size.to_i)
         
         # Apply sorting to the posts if configured, any field for the post is available for sorting
         if config['sort_field']

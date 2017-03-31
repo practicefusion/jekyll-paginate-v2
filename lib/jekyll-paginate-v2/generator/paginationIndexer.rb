@@ -22,7 +22,12 @@ module Jekyll
           # Only tags and categories come as premade arrays, locale does not, so convert any data
           # elements that are strings into arrays
           post_data = post.data[index_key]
-          if post_data.is_a?(String)
+
+          if post_data.is_a?(String) && index_key == 'author'
+            post_data = [post_data]
+          elsif post_data.is_a?(Hash) && index_key == 'author'
+            post_data = [post_data['display_name']];
+          elsif post_data.is_a?(String)
             post_data = post_data.split(/;|,|\s/)
           end
           
@@ -69,7 +74,7 @@ module Jekyll
         return posts if !config.has_key?(config_key)
         return posts if config[config_key].nil?
         
-        # Get the filter values from the config (this is the cat/tag/locale values that should be filtered on)
+        # Get the filter values from the config (this is the cat/tag/locale/AUTHOR values that should be filtered on)
         config_value = config[config_key]
         
         # If we're dealing with a delimitered string instead of an array then let's be forgiving

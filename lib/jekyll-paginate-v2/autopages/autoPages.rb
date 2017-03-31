@@ -29,7 +29,13 @@ module Jekyll
         site.pages << TagAutoPage.new(site, site.dest, autopage_tag_config, pagination_config, layout_name, tag, tag_original_name)
       end
       autopage_create(autopage_config, pagination_config, posts_to_use, 'tags', 'tags', createtagpage_lambda) # Call the actual function
-      
+
+      ###############################################
+      # Generate the Tag pages if enabled
+      createauthorpage_lambda = lambda do | autopage_author_config, pagination_config, layout_name, author, author_original_name |
+        site.pages << AuthorAutoPage.new(site, site.dest, autopage_tag_config, pagination_config, layout_name, author, author_original_name)
+      end
+      autopage_create(autopage_config, pagination_config, posts_to_use, 'authors', 'authors', createauthorpage_lambda) # Call the actual function
 
       ###############################################
       # Generate the category pages if enabled
