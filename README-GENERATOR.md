@@ -21,11 +21,14 @@ The **Generator** forms the core of the pagination logic. It is responsible for 
   + [Filtering locales](#filtering-locales)
 * [How to paginate on combination of filters](#paginate-on-combination-of-filters)
 * [Overriding site configuration](#configuration-overrides)
+* [Offsetting posts (how to skip newest posts)](#offsetting-posts)
 * [Advanced Sorting](#advanced-sorting)
 * [Creating Pagination Trails](#creating-pagination-trails)
 * [How to detect auto-generated pages](#detecting-generated-pagination-pages)
 * [Formatting page titles](#formatting-page-titles)
 * [Reading pagination meta information](#reading-pagination-meta-information)
+* [How to generate a JSON API](#generating-a-json-api)
+* [Renaming pagination file names](#renaming-pagination-file-names)
 * [Common issues](#common-issues)
     - [Dependency Error after installing](#i-keep-getting-a-dependency-error-when-running-jekyll-serve-after-installing-this-gem)
     - [Bundler error upgrading gem (Bundler::GemNotFound)](#im-getting-a-bundler-error-after-upgrading-the-gem-bundlergemnotfound)
@@ -89,6 +92,14 @@ pagination:
     before: 2
     after: 2
 
+  # Optional, the default file extension for generated pages (e.g html, json, xml).
+  # Internally this is set to html by default
+  extension: html
+
+  # Optional, the default name of the index file for generated pages (e.g. 'index.html')
+  # Without file extension
+  indexpage: 'index'
+
 ############################################################
 ```
 
@@ -138,6 +149,27 @@ And to display pagination links, simply
 ```
 
 > All posts that have the `hidden: true` in their front matter are ignored by the pagination logic.
+
+Following fields area available on the `paginator` object
+
+| Field | Description |
+| --- | --- |
+| per_page | Maximum number of posts or documents on each pagination page. |
+| posts | The list of post objects that belong to this pagination page. |
+| total_posts | Total number of posts included in pagination. |
+| total_pages | Total number of pagination pages created. |
+| page | Number of the current pagination page. |
+| page_path | The relative Url path of the current pagination page. |
+| previous_page | Number of the previous page in the pagination. Nil if no previous page is available. |
+| previous_page_path | The relative Url of the previous page. Nil if no previous page is available. |
+| next_page | Number of the next page in the pagination. Nil if there is no next page available. |
+| next_page_path | The relative Url of the next page in the pagination. Nil if there is no next page available. |
+| first_page | Number of the first page in the pagination (usually this is `1`). |
+| first_page_path | The relative Url of the first page in the pagination. |
+| last_page | Number of the last page in the pagination (this is equal to `total_pages`). |
+| last_page_path | The relative Url of the last page in the pagination. |
+| page_trail | The [pagination trail](#creating-pagination-trails) structure |
+
 
 The code is fully backwards compatible and you will have access to all the normal paginator variables defined in the [official jekyll documentation](https://jekyllrb.com/docs/pagination/#liquid-attributes-available). 
 
@@ -323,6 +355,20 @@ pagination:
   sort_reverse: false
 ```
 
+## Offsetting posts
+The paging logic can be instructed to exclude the first _N_ number of newest posts from the pagination.
+This can be useful in situations where your site treats the first N posts differently from the rest (e.g. a featured post that is always present).
+
+The number of pages to skip is configured using the `offset` setting like so
+
+``` yml
+pagination: 
+  enabled: true
+  offset: 3
+```
+
+This example skips the 3 newest posts from the pagination logic.
+
 ## Advanced Sorting
 Sorting can be done by any field that is available in the post front-matter. You can even sort by nested fields.
 
@@ -458,6 +504,108 @@ Below is an example on how to print out a "Page x of n" in the pagination layout
 
 ``` html
 <h2>Page {{page.pagination_info.curr_page}} of {{page.pagination_info.total_pages}}</h2>
+```
+
+## Generating a JSON API
+
+Delivering content via an API is useful, for a lot of the same reasons that pagination is useful. We want to delivery content, in such a way, that is:
+
+1. Easy for the user to consume.
+2. Easy for the browser to load.
+
+Paginating content meets both of these requirements, but developers are limited to presenting content statically rather than dynamically. Some example of dynamic content delivery are:
+- Pop up modals
+- Infinite scrolling
+- Multi-tiered pagination (e.g. Netflix UI horizontal scrolling for multiple movie categories)
+
+### So how do I generate a JSON API for Jekyll?
+
+First, create a new jekyll page and set its layout to `null` to avoid any extra html to show up.
+
+Next, use the `extension` and `indexpage` option to customize the output of the page and its paginated content as JSON files.
+> Note that the `indexpage` field also supports the same macros as the permalink field
+
+Here's an example page:
+```
+---
+layout: null
+permalink: /api
+pagination:
+  permalink: ''
+  enabled: true
+  extension: .json
+  indexpage: 'feed-:num'
+---
+
+{
+  "pages": [{% for post in paginator.posts %}
+    {% if forloop.first != true %},{% endif %}
+    {
+      "title": "{{ post.title }}",
+      "link": "{{ post.url }}"
+    }{% endfor %}
+  ]
+}
+```
+Next, run `jekyll build`. This will generate a set of paginated JSON files under the folder `/api`. These JSON files can be loaded via Javascript/AJAX to dynamically load content into your site.
+
+Below's an example set of routes that the configuration would generate:
+- http://localhost:4000/api/feed-1.json
+- http://localhost:4000/api/feed-2.json
+- http://localhost:4000/api/feed-3.json
+
+And here is an example of one of the feed.json files that are created given the markup above
+```
+{
+  "pages": [
+    {
+      "title": "Narcisse Snake Pits",
+      "link": "/2016/11/narcisse-snake-pits.html"
+    },{
+      "title": "Luft-Fahrzeug-Gesellschaft",
+      "link": "/2016/11/luft-fahrzeug-gesellschaft.html"
+    },{
+      "title": "Rotary engine",
+      "link": "/2016/11/rotary-engine.html"
+    }
+  ], 
+  "next": "/api/feed-11.json",
+  "prev": "/api/feed-9.json",
+  "first": "/api/feed-1.json"
+}
+```
+
+For further information see [Example 4](https://github.com/sverrirs/jekyll-paginate-v2/tree/master/examples/04-jsonapi), that project can serve as a starting point for your experiments with this feature.
+
+### How did you generate those 'next', 'prev' and 'first' links?
+
+All the normal paginator variables can be used in these JSON feed files. You can use them to achive quite powerful features such as pre-loading and detecting when there are no more feeds to load. 
+
+```
+{% if paginator.next_page %}
+  ,"next": "{{ paginator.next_page_path }}"
+  {% endif %}
+  {% if paginator.last_page %}
+  ,"prev": "{{ paginator.last_page_path }}"
+  {% endif %}
+  {% if paginator.first_page %}
+  ,"first": "{{ paginator.first_page_path }}"
+  {% endif %}
+```
+
+## Renaming pagination file names
+By default the pagination system creates all paginated pages as `index.html`. The system provides an option to override this name and file extension with the 
+
+```yml
+  indexpage: index
+  extension: html
+```
+
+If you wanted to generate all pagination files as `default.htm` then the settings should be configured as follows
+
+```yml
+  indexpage: default
+  extension: htm
 ```
 
 ## Common issues

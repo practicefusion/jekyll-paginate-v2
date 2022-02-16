@@ -12,7 +12,7 @@ module Jekyll
         return nil if all_posts.nil?
         return all_posts if index_key.nil?
         index = {}
-        for post in all_posts
+        all_posts.each do |post|
           next if post.data.nil?
           next if !post.data.has_key?(index_key)
           next if post.data[index_key].nil?
@@ -31,11 +31,11 @@ module Jekyll
             post_data = post_data.split(/;|,|\s/)
           end
           
-          for key in post_data
+          post_data.each do |key|
             key = key.to_s.downcase.strip
             # If the key is a delimetered list of values 
             # (meaning the user didn't use an array but a string with commas)
-            for k_split in key.split(/;|,/)
+            key.split(/;|,/).each do |k_split|
               k_split = k_split.to_s.downcase.strip #Clean whitespace and junk
               if !index.has_key?(k_split)
                 index[k_split.to_s] = []
@@ -64,10 +64,26 @@ module Jekyll
       end #function intersect_arrays
       
       #
-      # Filters posts based on a keyed source_posts hash of indexed posts and performs a intersection of 
-      # the two sets. Returns only posts that are common between all collections 
+      # Creates a union (returns unique elements from both)
+      # between multiple arrays
       #
-      def self.read_config_value_and_filter_posts(config, config_key, posts, source_posts)
+      def self.union_arrays(first, *rest)
+        return nil if first.nil?
+        return nil if rest.nil?
+
+        union = first
+        rest.each do |item|
+          return [] if item.nil?
+          union = union | item
+        end
+        return union
+      end #function union_arrays
+
+      #
+      # Filters posts based on a keyed source_posts hash of indexed posts and performs a intersection of
+      # the two sets. Returns only posts that are common between all collections
+      #
+      def self.read_config_value_and_filter_posts(config, config_key, posts, source_posts, should_union = false)
         return nil if posts.nil?
         return nil if source_posts.nil? # If the source is empty then simply don't do anything
         return posts if config.nil?
@@ -84,9 +100,15 @@ module Jekyll
           
         # Now for all filter values for the config key, let's remove all items from the posts that
         # aren't common for all collections that the user wants to filter on
-        for key in config_value
+        posts = [] if should_union
+
+        config_value.each do |key|
           key = key.to_s.downcase.strip
-          posts = PaginationIndexer.intersect_arrays(posts, source_posts[key])
+          posts = if should_union
+            PaginationIndexer.union_arrays(posts, source_posts[key])
+          else
+            PaginationIndexer.intersect_arrays(posts, source_posts[key])
+          end
         end
         
         # The fully filtered final post list

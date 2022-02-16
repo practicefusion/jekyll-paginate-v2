@@ -31,7 +31,7 @@ module Jekyll
         end
 
         # Now for each template page generate the paginator for it
-        for template in templates
+        templates.each do |template|
           # All pages that should be paginated need to include the pagination config element
           if template.data['pagination'].is_a?(Hash)
             template_config = Jekyll::Utils.deep_merge_hashes(default_config, template.data['pagination'] || {})
@@ -114,10 +114,13 @@ module Jekyll
 
         docs = []
         # Now for each of the collections get the docs
-        for coll_name in collection_names
+        collection_names.each do |coll_name|
           # Request all the documents for the collection in question, and join it with the total collection 
           docs += @collection_by_name_lambda.call(coll_name.downcase.strip)
         end
+
+        # Hidden documents should not not be processed anywhere.
+        docs = docs.reject { |doc| doc['hidden'] }
 
         return docs
       end
@@ -156,6 +159,8 @@ module Jekyll
           
           puts f + " Active Filters"
           puts f + "  Collection: ".ljust(r) + config['collection'].to_s
+          puts f + "  Offset: ".ljust(r) + config['offset'].to_s
+          puts f + "  Combine: ".ljust(r) + config['combine'].to_s
           puts f + "  Category: ".ljust(r) + (config['category'].nil? || config['category'] == "posts" ? "[Not set]" : config['category'].to_s)
           puts f + "  Tag: ".ljust(r) + (config['tag'].nil? ? "[Not set]" : config['tag'].to_s)
           puts f + "  Locale: ".ljust(r) + (config['locale'].nil? ? "[Not set]" : config['locale'].to_s)
@@ -205,16 +210,18 @@ module Jekyll
       def paginate(template, config, site_title, all_posts, all_tags, all_categories, all_locales, all_authors)
         # By default paginate on all posts in the site
         using_posts = all_posts
-        
+
+        should_union = config['combine'] == 'union'
+
         # Now start filtering out any posts that the user doesn't want included in the pagination
         before = using_posts.size.to_i
-        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'category', using_posts, all_categories)
+        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'category', using_posts, all_categories, should_union)
         self._debug_print_filtering_info('Category', before, using_posts.size.to_i)
         before = using_posts.size.to_i
-        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'tag', using_posts, all_tags)
+        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'tag', using_posts, all_tags, should_union)
         self._debug_print_filtering_info('Tag', before, using_posts.size.to_i)
         before = using_posts.size.to_i
-        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'locale', using_posts, all_locales)
+        using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'locale', using_posts, all_locales, should_union)
         self._debug_print_filtering_info('Locale', before, using_posts.size.to_i)
         before = using_posts.size.to_i
         using_posts = PaginationIndexer.read_config_value_and_filter_posts(config, 'author', using_posts, all_authors)
@@ -231,17 +238,23 @@ module Jekyll
           if @debug
             puts "Pagination: ".rjust(20) + "Rolling through the date fields for all documents"
           end
-          for p in using_posts
-            tmp_date = p.date
-            if( !tmp_date || tmp_date.nil? )
-              if @debug
-                puts "Pagination: ".rjust(20) + "Explicitly assigning date for doc: #{p.data['title']} | #{p.path}"
+          using_posts.each do |u_post|
+            if u_post.respond_to?('date')
+              tmp_date = u_post.date
+              if( !tmp_date || tmp_date.nil? )
+                if @debug
+                  puts "Pagination: ".rjust(20) + "Explicitly assigning date for doc: #{u_post.data['title']} | #{u_post.path}"
+                end
+                u_post.date = File.mtime(u_post.path)
               end
-              p.date = File.mtime(p.path)
             end
           end
 
           using_posts.sort!{ |a,b| Utils.sort_values(Utils.sort_get_post_data(a.data, sort_field), Utils.sort_get_post_data(b.data, sort_field)) }
+
+          # Remove the first x entries
+          offset_post_count = [0, config['offset'].to_i].max
+          using_posts.pop(offset_post_count)
 
           if config['sort_reverse']
             using_posts.reverse!
@@ -262,6 +275,14 @@ module Jekyll
         # list of all newly created pages
         newpages = []
 
+        # Consider the default index page name and extension
+        indexPageName = config['indexpage'].nil? ? '' : config['indexpage'].split('.')[0]
+        indexPageExt =  config['extension'].nil? ? '' : Utils.ensure_leading_dot(config['extension'])
+        indexPageWithExt = indexPageName + indexPageExt
+
+        # In case there are no (visible) posts, generate the index file anyway
+        total_pages = 1 if total_pages.zero?
+
         # Now for each pagination page create it and configure the ranges for the collection
         # This .pager member is a built in thing in Jekyll and defines the paginator implementation
         # Simpy override to use mine
@@ -269,7 +290,7 @@ module Jekyll
 
           # 1. Create the in-memory page
           #    External Proc call to create the actual page for us (this is passed in when the pagination is run)
-          newpage = PaginationPage.new( template, cur_page_nr, total_pages )
+          newpage = PaginationPage.new( template, cur_page_nr, total_pages, indexPageWithExt )
 
           # 2. Create the url for the in-memory page (calc permalink etc), construct the title, set all page.data values needed
           paginated_page_url = config['permalink']
@@ -282,17 +303,17 @@ module Jekyll
           paginated_page_url = File.join(first_index_page_url, paginated_page_url)
           
           # 3. Create the pager logic for this page, pass in the prev and next page numbers, assign pager to in-memory page
-          newpage.pager = Paginator.new( config['per_page'], first_index_page_url, paginated_page_url, using_posts, cur_page_nr, total_pages)
+          newpage.pager = Paginator.new( config['per_page'], first_index_page_url, paginated_page_url, using_posts, cur_page_nr, total_pages, indexPageName, indexPageExt)
 
           # Create the url for the new page, make sure we prepend any permalinks that are defined in the template page before
           if newpage.pager.page_path.end_with? '/'
-            newpage.set_url(File.join(newpage.pager.page_path, 'index.html'))
-          elsif newpage.pager.page_path.end_with? '.html'
+            newpage.set_url(File.join(newpage.pager.page_path, indexPageWithExt))
+          elsif newpage.pager.page_path.end_with? indexPageExt
             # Support for direct .html files
             newpage.set_url(newpage.pager.page_path)
           else
             # Support for extensionless permalinks
-            newpage.set_url(newpage.pager.page_path+'.html')
+            newpage.set_url(newpage.pager.page_path+indexPageExt)
           end
 
           if( template.data['permalink'] )
