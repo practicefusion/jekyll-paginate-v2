@@ -2,9 +2,9 @@ module Jekyll
   module PaginateV2::AutoPages
 
     #
-    # When the site has been read then go a head an generate the necessary extra pages
+    # This function is called right after the main generator is triggered by Jekyll
     # This code is adapted from Stephen Crosby's code https://github.com/stevecrozz
-    Jekyll::Hooks.register :site, :post_read do |site|
+    def self.create_autopages(site)
 
       # Get the configuration for the auto pages
       autopage_config = Jekyll::Utils.deep_merge_hashes(DEFAULT, site.config['autopages'] || {})
@@ -13,8 +13,10 @@ module Jekyll
       # If disabled then don't do anything
       if !autopage_config['enabled'] || autopage_config['enabled'].nil?
         Jekyll.logger.info "AutoPages:","Disabled/Not configured in site.config."
-        next ## Break the loop, could be an issue if the hook is called again though??
+        return
       end
+
+      autopages_log(autopage_config, 'tags', 'categories', 'collections')
 
       # TODO: Should I detect here and disable if we're running the legacy paginate code???!
 
@@ -51,18 +53,16 @@ module Jekyll
       end
       autopage_create(autopage_config, pagination_config,posts_to_use, 'collections', '__coll', createcolpage_lambda) # Call the actual function
     
-    end # Jekyll::Hooks
+    end # create_autopages
 
 
     # STATIC: this function actually performs the steps to generate the autopages. It uses a lambda function to delegate the creation of the individual
     #         page types to the calling code (this way all features can reuse the logic).
     #
     def self.autopage_create(autopage_config, pagination_config, posts_to_use, configkey_name, indexkey_name, createpage_lambda )
-       if !autopage_config[configkey_name].nil?
+      if !autopage_config[configkey_name].nil?
         ap_sub_config = autopage_config[configkey_name]
         if ap_sub_config ['enabled']
-          Jekyll.logger.info "AutoPages:","Generating #{configkey_name} pages"
-
           # Roll through all documents in the posts collection and extract the tags
           index_keys = Utils.ap_index_posts_by(posts_to_use, indexkey_name) # Cannot use just the posts here, must use all things.. posts, collections...
 
@@ -73,11 +73,31 @@ module Jekyll
               createpage_lambda.call(ap_sub_config, pagination_config, layout_name, index_key, value[-1]) # the last item in the value array will be the display name
             end
           end
-        else
-          Jekyll.logger.info "AutoPages:","#{configkey_name} pages are disabled/not configured in site.config."
         end
       end
     end
 
+    def self.autopages_log(config, *config_keys)
+      enabled, disabled = [], []
+      config_keys.each do |key|
+        key_config = config[key] # config for key
+        next if config.nil? || key_config['silent']
+
+        (key_config['enabled'] ? enabled : disabled) << key
+      end
+
+      Jekyll.logger.info("AutoPages:","Generating pages for #{_to_sentence(enabled)}") unless enabled.empty?
+      Jekyll.logger.info("AutoPages:","#{_to_sentence(disabled)} pages are disabled/not configured in site.config") unless disabled.empty?
+    end
+
+    def self._to_sentence(array)
+      if array.empty?
+        ""
+      elsif array.length == 1
+        array[0].to_s
+      else
+        array[0..-2].join(", ") + " & " + array.last
+      end
+    end
   end # module PaginateV2
 end # module Jekyll

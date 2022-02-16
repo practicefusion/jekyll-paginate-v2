@@ -9,16 +9,15 @@ module Jekyll
     # This page exists purely in memory and is not read from disk
     #
     class PaginationPage < Page
-      def initialize(page_to_copy, cur_page_nr, total_pages)
+      def initialize(page_to_copy, cur_page_nr, total_pages, index_pageandext)
         @site = page_to_copy.site
         @base = ''
         @url = ''
-        @name = 'index.html'
+        @name = index_pageandext.nil? ? 'index.html' : index_pageandext
 
         self.process(@name) # Creates the basename and ext member values
 
         # Only need to copy the data part of the page as it already contains the layout information
-        #self.data = Marshal.load(Marshal.dump(page_to_copy.data)) # Deep copying, http://stackoverflow.com/a/8206537/779521
         self.data = Jekyll::Utils.deep_merge_hashes( page_to_copy.data, {} )
         if !page_to_copy.data['autopage']
           self.content = page_to_copy.content
@@ -31,7 +30,13 @@ module Jekyll
         end
 
         # Store the current page and total page numbers in the pagination_info construct
-        self.data['pagination_info'] = {"curr_page" => cur_page_nr, 'total_pages' => total_pages }
+        self.data['pagination_info'] = {"curr_page" => cur_page_nr, 'total_pages' => total_pages }       
+
+        # Retain the extention so the page exists in site.html_pages
+        self.ext = page_to_copy.ext
+        
+        # Map the first page back to the source file path, to play nice with other plugins
+        self.data['path'] = page_to_copy.path if cur_page_nr == 1
 
         # Perform some validation that is also performed in Jekyll::Page
         validate_data! page_to_copy.path

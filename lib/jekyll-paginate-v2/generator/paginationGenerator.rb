@@ -20,15 +20,19 @@ module Jekyll
       # Returns nothing.
       def generate(site)
       #begin
+        # Generate the AutoPages first
+        PaginateV2::AutoPages.create_autopages(site)
+
         # Retrieve and merge the pagination configuration from the site yml file
         default_config = Jekyll::Utils.deep_merge_hashes(DEFAULT, site.config['pagination'] || {})
 
         # Compatibility Note: (REMOVE AFTER 2018-01-01)
         # If the legacy paginate logic is configured then read those values and merge with config
         if !site.config['paginate'].nil?
+          Jekyll.logger.info "Pagination:","Legacy paginate configuration settings detected and will be used."
           # You cannot run both the new code and the old code side by side
           if !site.config['pagination'].nil?
-            err_msg = "The new jekyll-paginate-v2 and the old jekyll-paginate logic cannot both be configured in the site config at the same time. Please disable the old 'paginate:' config settings."
+            err_msg = "The new jekyll-paginate-v2 and the old jekyll-paginate logic cannot both be configured in the site config at the same time. Please disable the old 'paginate:' config settings by either omitting the values or setting them to 'paginate:off'."
             Jekyll.logger.error err_msg 
             raise ArgumentError.new(err_msg)
           end
@@ -73,7 +77,7 @@ module Jekyll
           if collection_name == "all"
             # the 'all' collection_name is a special case and includes all collections in the site (except posts!!)
             # this is useful when you want to list items across multiple collections
-            for coll_name, coll_data in site.collections
+            site.collections.each do |coll_name, coll_data|
               if( !coll_data.nil? && coll_name != 'posts')
                 coll += coll_data.docs.select { |doc| !doc.data.has_key?('pagination') } # Exclude all pagination pages
               end

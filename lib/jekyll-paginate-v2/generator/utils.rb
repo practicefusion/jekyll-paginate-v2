@@ -32,6 +32,17 @@ module Jekyll
       def self.format_page_title(toFormat, title, cur_page_nr=nil, total_page_count=nil)
         return format_page_number(toFormat.sub(':title', title.to_s), cur_page_nr, total_page_count)
       end #function format_page_title
+
+      # Static: Return a String version of the input which has a leading dot.
+      #         If the input already has a dot in position zero, it will be
+      #         returned unchanged.
+      #
+      # path - a String path
+      #
+      # Returns the path with a leading slash
+      def self.ensure_leading_dot(path)
+        path[0..0] == "." ? path : ".#{path}"
+      end
       
       # Static: Return a String version of the input which has a leading slash.
       #         If the input already has a forward slash in position zero, it will be
@@ -69,10 +80,20 @@ module Jekyll
       # Handles Strings separately as we want a case-insenstive sorting
       #
       def self.sort_values(a, b)
+        if a.nil? && !b.nil?
+          return -1
+        elsif !a.nil? && b.nil?
+          return 1
+        end
+
         if a.is_a?(String)
           return a.downcase <=> b.downcase
         end
-        
+
+        if a.respond_to?('to_datetime') && b.respond_to?('to_datetime')
+          return a.to_datetime <=> b.to_datetime
+        end
+
         # By default use the built in sorting for the data type
         return a <=> b
       end
@@ -86,7 +107,7 @@ module Jekyll
         sort_split = sort_field.split(":")
         sort_value = post_data
 
-        for r_key in sort_split
+        sort_split.each do |r_key|
           key = r_key.downcase.strip # Remove any erronious whitespace and convert to lower case
           if !sort_value.has_key?(key)
             return nil
@@ -101,6 +122,17 @@ module Jekyll
         else
           return sort_value
         end
+      end
+
+      # Ensures that the passed in url has a index and extension applied
+      def self.ensure_full_path(url, default_index, default_ext)
+        if( url.end_with?('/'))
+          return url + default_index + default_ext
+        elsif !url.include?('.')
+          return url + default_index
+        end
+        # Default
+        return url
       end
 
     end
